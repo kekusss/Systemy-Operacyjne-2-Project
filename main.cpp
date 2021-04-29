@@ -6,10 +6,38 @@
 #include <vector>
 #include <ncurses.h>
 #include <unistd.h>
+#include <mutex>
+#include <condition_variable>
 #include "Car.h"
 
 bool running = true;
 std::vector<Car> cars;
+std::vector<std::thread> carsThreads;
+
+std::mutex mutexes[1000];
+std::condition_variable cvs[1000];
+
+
+void myClear(){
+    int xMax, yMax = 0;
+    getmaxyx(stdscr, yMax, xMax);
+
+    for(int i=0; i<xMax-10; i++){
+        mvprintw(0 , i, " ");
+        mvprintw(yMax-10 , i, " ");
+    }
+
+    for(int i=0; i<yMax-11; i++){
+        mvprintw(i+1 , 0, " ");
+        mvprintw(i+1 , xMax-10, " ");
+    }
+
+    for(int i=0; i<3; i++){
+        mvprintw(i , xMax-10, " ");
+        mvprintw(yMax-10-i, xMax-10, " ");
+        mvprintw(yMax-10 , xMax-12+i, " ");
+    }
+}
 
 void drawTrack(){
     int xMax, yMax = 0;
@@ -32,6 +60,7 @@ void drawTrack(){
         mvprintw(yMax-9-i, xMax-8, "|");
         mvprintw(yMax-9 , xMax-11+i, "_");
     }
+
 }
 
 // "Monitor" function
@@ -39,7 +68,7 @@ void refreshScreen()
 {
     while(running == true)
     {
-        clear();
+        myClear();
 
         for(int i = 0; i < (int)cars.size(); i++)
         {
@@ -48,7 +77,6 @@ void refreshScreen()
             }
         }
         usleep(47000);
-        drawTrack();
         refresh();
 
         // Refresh every 0.05 s
@@ -68,7 +96,6 @@ void refreshScreen()
 int main(int argc, char *argv[])
 {
     int xMax, yMax, ridingCars = 0;
-    std::vector<std::thread> carsThreads;
 
     srand(time(0));
 
@@ -83,6 +110,8 @@ int main(int argc, char *argv[])
     // Get console dimensions
     getmaxyx(stdscr, yMax, xMax);
 
+    drawTrack();
+
     // Initialize scene
     Car::initScene(abs(xMax-10), abs(yMax-10));
 
@@ -90,9 +119,10 @@ int main(int argc, char *argv[])
     
     // Initialize all cars
     int max = rand() % 10 + 5;
+    
     for(int i = 0; i < max; i++)
     {
-        Car car(0, 0, &ids[i*2], (rand() % 60) + 40);
+        Car car(0, 0, &ids[i*2], (rand() % 60) + 40, mutexes, cvs);
         cars.push_back(car);
     }
 

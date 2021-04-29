@@ -7,7 +7,8 @@ int Car::maxLaps = 3;
 int Car::xStart;
 int Car::yStart;
 
-Car::Car(int xPosition, int yPosition, const char* idCharacter, int speed)
+Car::Car(int xPosition, int yPosition, const char* idCharacter, int speed, std::mutex (&mutexesArg)[1000], std::condition_variable (&cvsArg)[1000])
+    : mutexes(mutexesArg) , cvs(cvsArg)
 {
     //ctor
     this->xPosition = Car::xStart = xPosition;
@@ -16,6 +17,7 @@ Car::Car(int xPosition, int yPosition, const char* idCharacter, int speed)
     this->speed = speed;
     this->driving = false;
     this->lap = 0;
+    this->locked = false;
 }
 
 Car::~Car()
@@ -28,6 +30,10 @@ void Car::initScene(int xRes, int yRes)
     xMax = xRes;
     yMax = yRes;
     initialized = true;
+}
+
+int Car::getSpeed(){
+    return speed;
 }
 
 int Car::getxPosition()
@@ -68,14 +74,63 @@ void Car::drive()
         {
             // both vertical sections
             if(yPosition > 0 && yPosition < yMax){
-                usleep((int) (3000000/speed)*1.8);
 
-                if(xPosition == 0) yPosition -= 1;
-                else yPosition +=1;
+                if(xPosition == 0){
+                    int index = 2*xMax + yMax + yPosition;
+                    
+                    // notifies cars in a given position that he is trying to seize it
+                    cvs[index].notify_one();
+
+                    // blokuje mutex
+                    std::unique_lock<std::mutex> lock(mutexes[index]);
+
+                    // blocks the current thread until the condition variable wakes up or on the timeout side
+                    auto now = std::chrono::system_clock::now();
+                    if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*1.8)))) != std::cv_status::timeout)
+                    {
+                        lock.unlock();
+                        usleep(3000000);
+                    }
+
+                    yPosition -= 1;
+                }
+                else{
+                    int index = xMax+yPosition;
+                    
+                    // notifies cars in a given position that he is trying to seize it
+                    cvs[index].notify_one();
+
+                    // blokuje mutex
+                    std::unique_lock<std::mutex> lock(mutexes[index]);
+
+                    // blocks the current thread until the condition variable wakes up or on the timeout side
+                    auto now = std::chrono::system_clock::now();
+                    if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*1.8)))) != std::cv_status::timeout)
+                    {
+                        lock.unlock();
+                        usleep(3000000);
+                    }
+            
+                    yPosition +=1;
+                }
             }
             // first horizontal section
             else if(yPosition <= 0){
-                usleep((int) (3000000/speed)*0.6);
+                int index = xPosition;
+                
+                // notifies cars in a given position that he is trying to seize it
+                cvs[index].notify_one();
+
+                // blokuje mutex
+                std::unique_lock<std::mutex> lock(mutexes[index]);
+
+                // blocks the current thread until the condition variable wakes up or on the timeout side
+                auto now = std::chrono::system_clock::now();
+                if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*0.6)))) != std::cv_status::timeout)
+                {
+                    lock.unlock();
+                    usleep(3000000);
+                }
 
                 if(xPosition >= xMax){
                     yPosition = 1;
@@ -87,7 +142,22 @@ void Car::drive()
             }
             // second horizontal section
             else{
-                usleep((int) (3000000/speed)*0.6);
+                int index = xMax + yMax + xPosition;
+                
+                // notifies cars in a given position that he is trying to seize it
+                cvs[index].notify_one();
+
+                // try to lock mutex
+                std::unique_lock<std::mutex> lock(mutexes[index], std::try_to_lock);
+                
+                // blocks the current thread until the condition variable wakes up or on the timeout side
+                auto now = std::chrono::system_clock::now();
+                if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*0.6)))) != std::cv_status::timeout)
+                {
+                    lock.unlock();
+                    usleep(3000000);
+                }
+
                 if(xPosition <= 0){
                     xPosition = 0;
                     yPosition = yMax - 1;
