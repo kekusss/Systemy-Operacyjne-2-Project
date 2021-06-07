@@ -83,6 +83,10 @@ void Car::drive()
 
                     // blokuje mutex
                     std::unique_lock<std::mutex> lock(mutexes[index]);
+                    
+                    if(! lock.owns_lock()){
+                        lock.lock();
+                    }
 
                     // blocks the current thread until the condition variable wakes up or on the timeout side
                     auto now = std::chrono::system_clock::now();
@@ -102,6 +106,10 @@ void Car::drive()
 
                     // blokuje mutex
                     std::unique_lock<std::mutex> lock(mutexes[index]);
+
+                    if(! lock.owns_lock()){
+                        lock.lock();
+                    }
 
                     // blocks the current thread until the condition variable wakes up or on the timeout side
                     auto now = std::chrono::system_clock::now();
@@ -123,6 +131,10 @@ void Car::drive()
 
                 // blokuje mutex
                 std::unique_lock<std::mutex> lock(mutexes[index]);
+
+                if(! lock.owns_lock()){
+                    lock.lock();
+                }
 
                 // blocks the current thread until the condition variable wakes up or on the timeout side
                 auto now = std::chrono::system_clock::now();
@@ -150,6 +162,10 @@ void Car::drive()
                 // try to lock mutex
                 std::unique_lock<std::mutex> lock(mutexes[index], std::try_to_lock);
                 
+                if(! lock.owns_lock()){
+                    lock.lock();
+                }
+
                 // blocks the current thread until the condition variable wakes up or on the timeout side
                 auto now = std::chrono::system_clock::now();
                 if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*0.6)))) != std::cv_status::timeout)

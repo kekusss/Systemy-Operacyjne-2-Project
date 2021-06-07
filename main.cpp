@@ -17,6 +17,12 @@ std::vector<std::thread> carsThreads;
 std::mutex mutexes[1000];
 std::condition_variable cvs[1000];
 
+/**
+ * Zadanie 2:
+ * Jeśli pojazd dogoni inny to pojazd dogoniony będzie stawał i stał określny czas a następnie będzie ruszał.
+ * W czasie w którym pojazd będzie stał nie liczy się jako dogoniony.
+ * 
+*/
 
 void myClear(){
     int xMax, yMax = 0;
