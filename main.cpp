@@ -20,7 +20,7 @@ bool isStanding[1000];
 
 /**
  * Zadanie 3:
- * Jeśli pojazd dogoni inny to będzie stawał i stał określny czas a następnie będzie ruszał.
+ * Jeśli pojazd dogoni inny to pojazd dogoniony będzie stawał i stał określny czas a następnie będzie ruszał.
  * Uśpiony pojazd blokuje drogę, za nim ustawiają się inne pojazdy, kiedy pierwszy ruszy to inne pojazdy ruszają z opóźnieniem,
  * każdy z kolejki będzie wypuszczany co jakiś czas
 */

@@ -142,38 +142,37 @@ void Car::drive()
 
             if(lock.owns_lock()){
                 move();
+                // sytuacja gdy ktos czeka aż go wyprzedzimy
                 if(isStanding[index+1]){
                     lock.unlock();
                     cvs[index+1].notify_one();
                 }
                 else{
+                    // my stoimy i czekamy az ktos nas wyprzedzi
                     isStanding[index+1] = true;
                     auto now = std::chrono::system_clock::now();
                     // blocks the current thread until the condition variable wakes up or on the timeout side
                     if (cvs[index+1].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*getSpeedOfTrack())))) != std::cv_status::timeout){
                         // sleep
-                        usleep(3000000);
+                        usleep(2000000);
                     }
                     lock.unlock();
                     // notify
-                    // cvs[index].notify_one();
                     isStanding[index+1] = false;
                 }
-                // nobody was faster
             }
+            // ktos zostal zatrzymany
             else{
-                // zablokuj pozycje na ktorej jesteś
-                // cvs[index+1].notify_one();
+                // my tez jestesmy zatrzymani
+                isStanding[index] = true;
                 std::unique_lock<std::mutex> lock2(mutexes[index]);
-                // cvs[index].wait(lock2);
                 
-                // zatrzymaj wątek
-                usleep(3000000);
-                // move();
-
+                // czekamy az samochod przed nami ruszy, problem jednego piszacego, wielu czytajacych
+                while(isStanding[index+1] == true){
+                }
+                usleep(1000000);
+                isStanding[index] = false;
                 lock2.unlock();
-                // poiadomieie
-                cvs[index-1].notify_one();
             }
 
             if(xPosition == xStart && yPosition == yStart)
