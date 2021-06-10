@@ -136,41 +136,40 @@ void Car::drive()
         {
             // get position index
             int index = getIndex();
-            // try to lock next posiotion
-            std::unique_lock<std::mutex> lock(mutexes[index], std::try_to_lock);
+            // try to lock next position
+            std::unique_lock<std::mutex> lock(mutexes[index+1], std::try_to_lock);
+
 
             if(lock.owns_lock()){
                 move();
-                
-                auto now = std::chrono::system_clock::now();
-                // blocks the current thread until the condition variable wakes up or on the timeout side
-
-                if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*getSpeedOfTrack())))) != std::cv_status::timeout){
-                    // sleep
-                    usleep(3000000);
-                    // unlock
+                if(isStanding[index+1]){
+                    lock.unlock();
+                    cvs[index+1].notify_one();
+                }
+                else{
+                    isStanding[index+1] = true;
+                    auto now = std::chrono::system_clock::now();
+                    // blocks the current thread until the condition variable wakes up or on the timeout side
+                    if (cvs[index+1].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*getSpeedOfTrack())))) != std::cv_status::timeout){
+                        // sleep
+                        usleep(3000000);
+                    }
                     lock.unlock();
                     // notify
-                    cvs[index].notify_one();
+                    // cvs[index].notify_one();
+                    isStanding[index+1] = false;
                 }
                 // nobody was faster
-                else{
-                    lock.unlock();
-                    cvs[index].notify_one();
-                }
             }
             else{
                 // zablokuj pozycje na ktorej jesteś
-                cvs[index].notify_one();
-                std::unique_lock<std::mutex> lock2(mutexes[index-1], std::try_to_lock);
-                if(! lock2.owns_lock()){
-                    lock2.lock();
-                }
-                cvs[index].wait(lock2);
+                // cvs[index+1].notify_one();
+                std::unique_lock<std::mutex> lock2(mutexes[index]);
+                // cvs[index].wait(lock2);
                 
                 // zatrzymaj wątek
                 usleep(3000000);
-                move();
+                // move();
 
                 lock2.unlock();
                 // poiadomieie
