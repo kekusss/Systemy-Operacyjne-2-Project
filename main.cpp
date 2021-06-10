@@ -16,12 +16,13 @@ std::vector<std::thread> carsThreads;
 
 std::mutex mutexes[1000];
 std::condition_variable cvs[1000];
+bool isStanding[1000];
 
 /**
- * Zadanie 2:
+ * Zadanie 3:
  * Jeśli pojazd dogoni inny to pojazd dogoniony będzie stawał i stał określny czas a następnie będzie ruszał.
- * W czasie w którym pojazd będzie stał nie liczy się jako dogoniony.
- * 
+ * Uśpiony pojazd blokuje drogę, za nim ustawiają się inne pojazdy, kiedy pierwszy ruszy to inne pojazdy ruszają z opóźnieniem,
+ * każdy z kolejki będzie wypuszczany co jakiś czas
 */
 
 void myClear(){
@@ -125,10 +126,14 @@ int main(int argc, char *argv[])
     
     // Initialize all cars
     int max = rand() % 10 + 5;
+
+    for(int i=0; i<1000; i++){
+        isStanding[i] = false;
+    }
     
     for(int i = 0; i < max; i++)
     {
-        Car car(0, 0, &ids[i*2], (rand() % 60) + 40, mutexes, cvs);
+        Car car(0, 0, &ids[i*2], (rand() % 60) + 40, mutexes, cvs, isStanding);
         cars.push_back(car);
     }
 

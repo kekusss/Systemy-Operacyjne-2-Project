@@ -7,8 +7,8 @@ int Car::maxLaps = 3;
 int Car::xStart;
 int Car::yStart;
 
-Car::Car(int xPosition, int yPosition, const char* idCharacter, int speed, std::mutex (&mutexesArg)[1000], std::condition_variable (&cvsArg)[1000])
-    : mutexes(mutexesArg) , cvs(cvsArg)
+Car::Car(int xPosition, int yPosition, const char* idCharacter, int speed, std::mutex (&mutexesArg)[1000], std::condition_variable (&cvsArg)[1000], bool (&isStandingArg)[1000])
+    : mutexes(mutexesArg) , cvs(cvsArg), isStanding(isStandingArg)
 {
     //ctor
     this->xPosition = Car::xStart = xPosition;
@@ -64,6 +64,68 @@ void Car::kill(){
     this->driving = false;
 }
 
+void Car::move(){
+    // both vertical sections
+    if(yPosition > 0 && yPosition < yMax){
+        if(xPosition == 0){
+            yPosition -= 1;
+        }
+        else{
+            yPosition += 1;
+        }
+    }
+    // first horizontal section
+    else if(yPosition <= 0){
+        if(xPosition >= xMax){
+            yPosition = 1;
+            xPosition = xMax;
+        }
+        else{
+            xPosition += 1;
+        }
+    }
+    // second horizontal section
+    else{
+        if(xPosition <= 0){
+            xPosition = 0;
+            yPosition = yMax - 1;
+        }
+        else{
+            xPosition -= 1;
+        }
+    }
+}
+int Car::getIndex(){
+    int index = 0;
+    // both vertical sections
+    if(yPosition > 0 && yPosition < yMax){
+        if(xPosition == 0){
+            index = 2*xMax + 2*yMax - yPosition;
+        }
+        else{
+            index = xMax+yPosition;
+        }
+    }
+    // first horizontal section
+    else if(yPosition <= 0){
+        index = xPosition;
+    }
+    // second horizontal section
+    else{
+        index = xMax + yMax +  xMax - xPosition;
+    }
+    return index;
+}
+
+float Car::getSpeedOfTrack(){
+    if(yPosition > 0 && yPosition < yMax){
+        return 1.8;
+    }
+    else{
+        return 0.6;
+    }
+}
+
 void Car::drive()
 {
     if(initialized)
@@ -72,115 +134,47 @@ void Car::drive()
 
         while(lap < maxLaps && driving == true)
         {
-            // both vertical sections
-            if(yPosition > 0 && yPosition < yMax){
+            // get position index
+            int index = getIndex();
+            // try to lock next posiotion
+            std::unique_lock<std::mutex> lock(mutexes[index], std::try_to_lock);
 
-                if(xPosition == 0){
-                    int index = 2*xMax + yMax + yPosition;
-                    
-                    // notifies cars in a given position that he is trying to seize it
-                    cvs[index].notify_one();
-
-                    // blokuje mutex
-                    std::unique_lock<std::mutex> lock(mutexes[index]);
-                    
-                    if(! lock.owns_lock()){
-                        lock.lock();
-                    }
-
-                    // blocks the current thread until the condition variable wakes up or on the timeout side
-                    auto now = std::chrono::system_clock::now();
-                    if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*1.8)))) != std::cv_status::timeout)
-                    {
-                        lock.unlock();
-                        usleep(3000000);
-                    }
-
-                    yPosition -= 1;
-                }
-                else{
-                    int index = xMax+yPosition;
-                    
-                    // notifies cars in a given position that he is trying to seize it
-                    cvs[index].notify_one();
-
-                    // blokuje mutex
-                    std::unique_lock<std::mutex> lock(mutexes[index]);
-
-                    if(! lock.owns_lock()){
-                        lock.lock();
-                    }
-
-                    // blocks the current thread until the condition variable wakes up or on the timeout side
-                    auto now = std::chrono::system_clock::now();
-                    if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*1.8)))) != std::cv_status::timeout)
-                    {
-                        lock.unlock();
-                        usleep(3000000);
-                    }
-            
-                    yPosition +=1;
-                }
-            }
-            // first horizontal section
-            else if(yPosition <= 0){
-                int index = xPosition;
+            if(lock.owns_lock()){
+                move();
                 
-                // notifies cars in a given position that he is trying to seize it
-                cvs[index].notify_one();
-
-                // blokuje mutex
-                std::unique_lock<std::mutex> lock(mutexes[index]);
-
-                if(! lock.owns_lock()){
-                    lock.lock();
-                }
-
-                // blocks the current thread until the condition variable wakes up or on the timeout side
                 auto now = std::chrono::system_clock::now();
-                if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*0.6)))) != std::cv_status::timeout)
-                {
-                    lock.unlock();
-                    usleep(3000000);
-                }
+                // blocks the current thread until the condition variable wakes up or on the timeout side
 
-                if(xPosition >= xMax){
-                    yPosition = 1;
-                    xPosition = xMax;
+                if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*getSpeedOfTrack())))) != std::cv_status::timeout){
+                    // sleep
+                    usleep(3000000);
+                    // unlock
+                    lock.unlock();
+                    // notify
+                    cvs[index].notify_one();
                 }
+                // nobody was faster
                 else{
-                    xPosition += 1;
+                    lock.unlock();
+                    cvs[index].notify_one();
                 }
             }
-            // second horizontal section
             else{
-                int index = xMax + yMax + xPosition;
-                
-                // notifies cars in a given position that he is trying to seize it
+                // zablokuj pozycje na ktorej jesteś
                 cvs[index].notify_one();
-
-                // try to lock mutex
-                std::unique_lock<std::mutex> lock(mutexes[index], std::try_to_lock);
+                std::unique_lock<std::mutex> lock2(mutexes[index-1], std::try_to_lock);
+                if(! lock2.owns_lock()){
+                    lock2.lock();
+                }
+                cvs[index].wait(lock2);
                 
-                if(! lock.owns_lock()){
-                    lock.lock();
-                }
+                // zatrzymaj wątek
+                usleep(3000000);
+                move();
 
-                // blocks the current thread until the condition variable wakes up or on the timeout side
-                auto now = std::chrono::system_clock::now();
-                if (cvs[index].wait_until(lock, now + (std::chrono::microseconds((int)((3000000/speed)*0.6)))) != std::cv_status::timeout)
-                {
-                    lock.unlock();
-                    usleep(3000000);
-                }
-
-                if(xPosition <= 0){
-                    xPosition = 0;
-                    yPosition = yMax - 1;
-                }
-                else{
-                    xPosition -= 1;
-                }
+                lock2.unlock();
+                // poiadomieie
+                cvs[index-1].notify_one();
             }
 
             if(xPosition == xStart && yPosition == yStart)

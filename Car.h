@@ -7,7 +7,7 @@
 class Car
 {
     public:
-        Car(int xPosition, int yPosition, const char* idCharacter, int speed, std::mutex (&mutexesArg)[1000], std::condition_variable (&cvsArg)[1000]);
+        Car(int xPosition, int yPosition, const char* idCharacter, int speed, std::mutex (&mutexesArg)[1000], std::condition_variable (&cvsArg)[1000], bool (&isStandingArg)[1000]);
         ~Car();
         static void initScene(int xRes, int yRes);
         static bool initialized;
@@ -34,7 +34,11 @@ class Car
         int speed;
         int lap;
         bool driving;
+        float getSpeedOfTrack();
+        int getIndex();
+        void move();
         void drive();
         std::mutex (&mutexes)[1000];
         std::condition_variable (&cvs)[1000];
+        bool (&isStanding)[1000];
 };
